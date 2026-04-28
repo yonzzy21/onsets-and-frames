@@ -24,10 +24,12 @@ def config():
     iterations = 500000
     resume_iteration = None
     checkpoint_interval = 1000
-    train_on = 'MAESTRO'
+    train_on = 'GuitarSet'
+    audio_features = 'cqt'
+    dataset_dir = None
 
-    batch_size = 8
-    sequence_length = 327680
+    batch_size = 32
+    sequence_length = 32000
     model_complexity = 48
 
     if torch.cuda.is_available() and torch.cuda.get_device_properties(torch.cuda.current_device()).total_memory < 10e9:
@@ -50,7 +52,7 @@ def config():
 
 
 @ex.automain
-def train(logdir, device, iterations, resume_iteration, checkpoint_interval, train_on, batch_size, sequence_length,
+def train(logdir, device, iterations, resume_iteration, checkpoint_interval, train_on, audio_features, dataset_dir, batch_size, sequence_length,
           model_complexity, learning_rate, learning_rate_decay_steps, learning_rate_decay_rate, leave_one_out,
           clip_gradient_norm, validation_length, validation_interval):
     print_config(ex.current_run)
@@ -65,17 +67,28 @@ def train(logdir, device, iterations, resume_iteration, checkpoint_interval, tra
         train_groups = list(all_years - {str(leave_one_out)})
         validation_groups = [str(leave_one_out)]
 
+    if train_on == 'GuitarSet':
+        dataset = GuitarSet(path=dataset_dir, groups=['train'], sequence_length=sequence_length) if dataset_dir else GuitarSet(groups=['train'], sequence_length=sequence_length)
+        validation_dataset = GuitarSet(path=dataset_dir, groups=['validation'], sequence_length=sequence_length) if dataset_dir else GuitarSet(groups=['validation'], sequence_length=sequence_length)
+    else:
+        raise ValueError(f"Dataset '{train_on}' is not supported. Use 'GuitarSet'.")
+    """
     if train_on == 'MAESTRO':
-        dataset = MAESTRO(groups=train_groups, sequence_length=sequence_length)
-        validation_dataset = MAESTRO(groups=validation_groups, sequence_length=sequence_length)
+        dataset = MAESTRO(path=dataset_dir, groups=train_groups, sequence_length=sequence_length) if dataset_dir else MAESTRO(groups=train_groups, sequence_length=sequence_length)
+        validation_dataset = MAESTRO(path=dataset_dir, groups=validation_groups, sequence_length=sequence_length) if dataset_dir else MAESTRO(groups=validation_groups, sequence_length=sequence_length)
+    elif train_on == 'GuitarSet':
+        dataset = GuitarSet(path=dataset_dir, groups=['train'], sequence_length=sequence_length) if dataset_dir else GuitarSet(groups=['train'], sequence_length=sequence_length)
+        validation_dataset = GuitarSet(path=dataset_dir, groups=['validation'], sequence_length=sequence_length) if dataset_dir else GuitarSet(groups=['validation'], sequence_length=sequence_length)
     else:
         dataset = MAPS(groups=['AkPnBcht', 'AkPnBsdf', 'AkPnCGdD', 'AkPnStgb', 'SptkBGAm', 'SptkBGCl', 'StbgTGd2'], sequence_length=sequence_length)
         validation_dataset = MAPS(groups=['ENSTDkAm', 'ENSTDkCl'], sequence_length=validation_length)
+    """
 
     loader = DataLoader(dataset, batch_size, shuffle=True, drop_last=True)
 
     if resume_iteration is None:
-        model = OnsetsAndFrames(N_MELS, MAX_MIDI - MIN_MIDI + 1, model_complexity).to(device)
+        input_features = N_MELS if audio_features == 'mel' else 288
+        model = OnsetsAndFrames(input_features, MAX_MIDI - MIN_MIDI + 1, model_complexity, audio_features).to(device)
         optimizer = torch.optim.Adam(model.parameters(), learning_rate)
         resume_iteration = 0
     else:
@@ -106,8 +119,16 @@ def train(logdir, device, iterations, resume_iteration, checkpoint_interval, tra
         if i % validation_interval == 0:
             model.eval()
             with torch.no_grad():
-                for key, value in evaluate(validation_dataset, model).items():
+                val_metrics = evaluate(validation_dataset, model)
+                for key, value in val_metrics.items():
                     writer.add_scalar('validation/' + key.replace(' ', '_'), np.mean(value), global_step=i)
+                
+                print(f'\n[Iteration {i}] Validation Metrics:')
+                for key, values in val_metrics.items():
+                    if key.startswith('metric/'):
+                        _, category, name = key.split('/')
+                        if name == 'f1' or name == 'precision' or name == 'recall':
+                            print(f'  {category:>20} {name:10}: {np.mean(values):.3f}')
             model.train()
 
         if i % checkpoint_interval == 0:

@@ -128,6 +128,7 @@ class PianoRollAudioDataset(Dataset):
         return data
 
 
+"""
 class MAESTRO(PianoRollAudioDataset):
 
     def __init__(self, path='data/MAESTRO', groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE):
@@ -181,3 +182,92 @@ class MAPS(PianoRollAudioDataset):
         assert(all(os.path.isfile(tsv) for tsv in tsvs))
 
         return sorted(zip(flacs, tsvs))
+"""
+
+
+class GuitarSet(PianoRollAudioDataset):
+    def __init__(self, path='data/GuitarSet', groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE):
+        super().__init__(path, groups if groups is not None else ['train', 'validation'], sequence_length, seed, device)
+
+    @classmethod
+    def available_groups(cls):
+        return ['train', 'validation', 'test']
+
+    def files(self, group):
+        try:
+            import mirdata
+        except ImportError:
+            print("Please install mirdata to use the GuitarSet dataset: pip install mirdata")
+            raise
+
+        dataset = mirdata.initialize('guitarset', data_home=self.path)
+        track_ids = dataset.track_ids
+
+        if group == 'train':
+            group_prefixes = ['00_', '01_', '02_', '03_', '04_']
+        elif group in ['validation', 'test']:
+            group_prefixes = ['05_']
+        else:
+            raise ValueError(f"Unknown group {group}")
+
+        result = []
+        os.makedirs(os.path.join(self.path, 'tsv'), exist_ok=True)
+        for track_id in track_ids:
+            if not any(track_id.startswith(p) for p in group_prefixes):
+                continue
+            track = dataset.track(track_id)
+            audio_path = track.audio_mic_path
+            
+            tsv_filename = os.path.join(self.path, 'tsv', track_id + '.tsv')
+            if not os.path.exists(tsv_filename):
+                intervals = track.notes_all.intervals
+                pitches = np.round(track.notes_all.pitches)
+                velocities = np.full(len(pitches), 100) # Default velocity
+                if len(intervals) > 0:
+                    midi = np.column_stack((intervals[:, 0], intervals[:, 1], pitches, velocities))
+                else:
+                    midi = np.empty((0, 4))
+                np.savetxt(tsv_filename, midi, fmt='%.6f', delimiter='\t', header='onset\toffset\tnote\tvelocity', comments='')
+            result.append((audio_path, tsv_filename))
+        
+        return result
+
+    def load(self, audio_path, tsv_path):
+        import torch
+        saved_data_path = audio_path.replace('.flac', '.pt').replace('.wav', '.pt')
+        if os.path.exists(saved_data_path):
+            return torch.load(saved_data_path)
+
+        import librosa
+        audio, sr = librosa.load(audio_path, sr=SAMPLE_RATE)
+        audio = torch.ShortTensor((audio * 32767.0).astype(np.int16))
+        audio_length = len(audio)
+
+        n_keys = MAX_MIDI - MIN_MIDI + 1
+        n_steps = (audio_length - 1) // HOP_LENGTH + 1
+
+        label = torch.zeros(n_steps, n_keys, dtype=torch.uint8)
+        velocity = torch.zeros(n_steps, n_keys, dtype=torch.uint8)
+
+        midi = np.loadtxt(tsv_path, delimiter='\t', skiprows=1)
+        if len(midi) > 0 and midi.ndim == 1:
+            midi = midi[np.newaxis, :]
+
+        for onset, offset, note, vel in midi:
+            left = int(round(onset * SAMPLE_RATE / HOP_LENGTH))
+            onset_right = min(n_steps, left + HOPS_IN_ONSET)
+            frame_right = int(round(offset * SAMPLE_RATE / HOP_LENGTH))
+            frame_right = min(n_steps, frame_right)
+            offset_right = min(n_steps, frame_right + HOPS_IN_OFFSET)
+
+            f = int(note) - MIN_MIDI
+            # ignore notes out of piano range
+            if f < 0 or f >= n_keys: continue
+            label[left:onset_right, f] = 3
+            label[onset_right:frame_right, f] = 2
+            label[frame_right:offset_right, f] = 1
+            velocity[left:frame_right, f] = vel
+
+        data = dict(path=audio_path, audio=audio, label=label, velocity=velocity)
+        torch.save(data, saved_data_path)
+        return data

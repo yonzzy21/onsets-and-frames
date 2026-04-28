@@ -9,7 +9,8 @@ import torch.nn.functional as F
 from torch import nn
 
 from .lstm import BiLSTM
-from .mel import melspectrogram
+from .mel import melspectrogram, CQT
+from .constants import *
 
 
 class ConvStack(nn.Module):
@@ -19,25 +20,24 @@ class ConvStack(nn.Module):
         # input is batch_size * 1 channel * frames * input_features
         self.cnn = nn.Sequential(
             # layer 0
-            nn.Conv2d(1, output_features // 16, (3, 3), padding=1),
-            nn.BatchNorm2d(output_features // 16),
+            nn.Conv2d(1, 12, (3, 3), padding=1),
+            nn.BatchNorm2d(12),
             nn.ReLU(),
             # layer 1
-            nn.Conv2d(output_features // 16, output_features // 16, (3, 3), padding=1),
-            nn.BatchNorm2d(output_features // 16),
+            nn.Conv2d(12, 12, (3, 3), padding=1),
+            nn.BatchNorm2d(12),
             nn.ReLU(),
-            # layer 2
+            # pooling
             nn.MaxPool2d((1, 2)),
             nn.Dropout(0.25),
-            nn.Conv2d(output_features // 16, output_features // 8, (3, 3), padding=1),
-            nn.BatchNorm2d(output_features // 8),
+            # layer 2
+            nn.Conv2d(12, 24, (3, 3), padding=1),
+            nn.BatchNorm2d(24),
             nn.ReLU(),
-            # layer 3
-            nn.MaxPool2d((1, 2)),
             nn.Dropout(0.25),
         )
         self.fc = nn.Sequential(
-            nn.Linear((output_features // 8) * (input_features // 4), output_features),
+            nn.Linear(24 * (input_features // 2), output_features),
             nn.Dropout(0.5)
         )
 
@@ -50,8 +50,14 @@ class ConvStack(nn.Module):
 
 
 class OnsetsAndFrames(nn.Module):
-    def __init__(self, input_features, output_features, model_complexity=48):
+    def __init__(self, input_features, output_features, model_complexity=48, audio_features='mel'):
         super().__init__()
+
+        self.audio_features = audio_features
+        if self.audio_features == 'cqt':
+            self.feature_extractor = CQT(N_MELS, SAMPLE_RATE, HOP_LENGTH, fmin=MEL_FMIN)
+        else:
+            self.feature_extractor = melspectrogram
 
         model_size = model_complexity * 16
         sequence_model = lambda input_size, output_size: BiLSTM(input_size, output_size // 2)
@@ -99,8 +105,8 @@ class OnsetsAndFrames(nn.Module):
         frame_label = batch['frame']
         velocity_label = batch['velocity']
 
-        mel = melspectrogram(audio_label.reshape(-1, audio_label.shape[-1])[:, :-1]).transpose(-1, -2)
-        onset_pred, offset_pred, _, frame_pred, velocity_pred = self(mel)
+        features = self.feature_extractor(audio_label.reshape(-1, audio_label.shape[-1])[:, :-1]).transpose(-1, -2)
+        onset_pred, offset_pred, _, frame_pred, velocity_pred = self(features)
 
         predictions = {
             'onset': onset_pred.reshape(*onset_label.shape),

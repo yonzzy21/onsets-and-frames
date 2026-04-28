@@ -32,7 +32,7 @@ class STFT(torch.nn.Module):
             assert(filter_length >= win_length)
             # get window and zero center pad it to filter_length
             fft_window = get_window(window, win_length, fftbins=True)
-            fft_window = pad_center(fft_window, filter_length)
+            fft_window = pad_center(fft_window, size=filter_length)
             fft_window = torch.from_numpy(fft_window).float()
 
             # window the bases
@@ -74,7 +74,7 @@ class MelSpectrogram(torch.nn.Module):
         super(MelSpectrogram, self).__init__()
         self.stft = STFT(filter_length, hop_length, win_length)
 
-        mel_basis = mel(sample_rate, filter_length, n_mels, mel_fmin, mel_fmax, htk=True)
+        mel_basis = mel(sr=sample_rate, n_fft=filter_length, n_mels=n_mels, fmin=mel_fmin, fmax=mel_fmax, htk=True)
         mel_basis = torch.from_numpy(mel_basis).float()
         self.register_buffer('mel_basis', mel_basis)
 
@@ -100,3 +100,24 @@ class MelSpectrogram(torch.nn.Module):
 # the default melspectrogram converter across the project
 melspectrogram = MelSpectrogram(N_MELS, SAMPLE_RATE, WINDOW_LENGTH, HOP_LENGTH, mel_fmin=MEL_FMIN, mel_fmax=MEL_FMAX)
 melspectrogram.to(DEFAULT_DEVICE)
+
+class CQT(torch.nn.Module):
+    def __init__(self, n_bins, sample_rate, hop_length, fmin=None):
+        super(CQT, self).__init__()
+        try:
+            from nnAudio.features.cqt import CQT1992v2
+        except ImportError:
+            print("Please install nnAudio to use CQT features: pip install nnAudio")
+            raise
+
+        if fmin is None:
+            fmin = 27.5 # A0
+
+        # Note: nnAudio returns (B, n_bins, T_frames)
+        self.cqt = CQT1992v2(sr=sample_rate, hop_length=hop_length, fmin=fmin, n_bins=n_bins, bins_per_octave=36, trainable=False)
+        
+    def forward(self, y):
+        # y: (B, T)
+        cqt_output = self.cqt(y)
+        cqt_output = torch.log(torch.clamp(cqt_output, min=1e-5))
+        return cqt_output
