@@ -5,26 +5,25 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1          # Request 1 GPU (e.g. RTX 8000 or V100)
 #SBATCH --mem=32GB            # Request 32GB memory
-#SBATCH --time=6:00:00       # Time limit (24 hours)
+#SBATCH --time=6:00:00        # Time limit (6 hours as requested)
 #SBATCH --output=slurm_%j.out # Standard output and error log
 
-# Load Anaconda module (standard for NYU Greene HPC)
-module purge
-module load anaconda3/2020.07
+# Start the Singularity container and pass the commands to run inside it
+singularity exec --nv \
+  --overlay /scratch/yd3245/training_project/overlay-25GB.ext3:ro \
+  --bind /scratch/yd3245:/scratch \
+  /share/apps/images/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif \
+  /bin/bash -c "
+    # 1. Initialize Conda from the overlay
+    source /ext3/miniconda3/bin/activate
+    conda activate base
 
-# Initialize conda
-eval "$(conda shell.bash hook)"
-
-# Activate the 'onsets' environment, creating it if it doesn't already exist
-conda activate onsets || { conda create -n onsets python=3.9 -y && conda activate onsets; }
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the training script. 
-# Because this project uses the `sacred` library, arguments are passed with the `with` keyword.
-echo "Starting training..."
-# You can also pass the dataset path directly if it's stored elsewhere on the HPC!
-# Replace '/path/to/your/hpc/GuitarSet' with your actual dataset folder.
-# 'sequence_length=32000' enforces exactly 2-second chunks (16,000 Hz * 2 seconds)
-python train.py with train_on="GuitarSet" audio_features="mel" dataset_dir="/scratch/yd3245/coloqui/Guitarset_FromMirdata" sequence_length=32000
+    # 3. Run the training script. 
+    # Because this project uses the `sacred` library, arguments are passed with the `with` keyword.
+    echo 'Starting training...'
+    python train.py with \
+      train_on='GuitarSet' \
+      audio_features='mel' \
+      dataset_dir='/scratch/yd3245/coloqui/Guitarset_FromMirdata' \
+      sequence_length=32000
+"
