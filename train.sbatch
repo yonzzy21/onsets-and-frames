@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=guitarset_train
+#SBATCH --account=torch_pr_529_general
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
