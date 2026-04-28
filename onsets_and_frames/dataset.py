@@ -204,8 +204,10 @@ class GuitarSet(PianoRollAudioDataset):
         track_ids = dataset.track_ids
 
         if group == 'train':
-            group_prefixes = ['00_', '01_', '02_', '03_', '04_']
-        elif group in ['validation', 'test']:
+            group_prefixes = ['00_', '01_', '02_', '03_']
+        elif group == 'validation':
+            group_prefixes = ['04_']
+        elif group == 'test':
             group_prefixes = ['05_']
         else:
             raise ValueError(f"Unknown group {group}")
