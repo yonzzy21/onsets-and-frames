@@ -36,8 +36,13 @@ class ConvStack(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.25),
         )
+        # Dynamically calculate the flattened size after the CNN
+        # With 3 conv layers and one MaxPool(1,2), the frequency dimension (input_features) 
+        # is divided by 2 once.
+        self.flattened_size = 24 * (input_features // 2)
+
         self.fc = nn.Sequential(
-            nn.Linear(24 * (input_features // 2), output_features),
+            nn.Linear(self.flattened_size, output_features),
             nn.Dropout(0.5)
         )
 
@@ -55,9 +60,13 @@ class OnsetsAndFrames(nn.Module):
 
         self.audio_features = audio_features
         if self.audio_features == 'cqt':
-            self.feature_extractor = CQT(N_MELS, SAMPLE_RATE, HOP_LENGTH, fmin=MEL_FMIN)
+            # CQT with 36 bins per octave for 8 octaves
+            n_bins = 288 
+            self.feature_extractor = CQT(n_bins, SAMPLE_RATE, HOP_LENGTH, fmin=MEL_FMIN)
+            input_features = n_bins
         else:
             self.feature_extractor = melspectrogram
+            input_features = N_MELS
 
         model_size = model_complexity * 16
         sequence_model = lambda input_size, output_size: BiLSTM(input_size, output_size // 2)
