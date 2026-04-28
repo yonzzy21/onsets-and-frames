@@ -27,4 +27,4 @@ echo "Starting training..."
 # You can also pass the dataset path directly if it's stored elsewhere on the HPC!
 # Replace '/path/to/your/hpc/GuitarSet' with your actual dataset folder.
 # 'sequence_length=32000' enforces exactly 2-second chunks (16,000 Hz * 2 seconds)
-python train.py with train_on="GuitarSet" audio_features="cqt" dataset_dir="/scratch/yd3245/coloqui/Guitarset_FromMirdata" sequence_length=32000
+python train.py with train_on="GuitarSet" audio_features="mel" dataset_dir="/scratch/yd3245/coloqui/Guitarset_FromMirdata" sequence_length=32000
