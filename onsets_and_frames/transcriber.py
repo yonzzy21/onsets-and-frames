@@ -106,7 +106,7 @@ class OnsetsAndFrames(nn.Module):
         velocity_label = batch['velocity']
 
         features = self.feature_extractor(audio_label.reshape(-1, audio_label.shape[-1])[:, :-1]).transpose(-1, -2)
-        features = features[:, :onset_label.shape[1], :]
+        features = features[:, :onset_label.shape[-2], :]
         onset_pred, offset_pred, _, frame_pred, velocity_pred = self(features)
 
         predictions = {
