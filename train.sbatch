@@ -15,9 +15,8 @@ module load anaconda3/2020.07
 # Initialize conda
 eval "$(conda shell.bash hook)"
 
-# Create a conda environment named 'onsets' if it doesn't exist
-conda create -n onsets python=3.9 -y
-conda activate onsets
+# Activate the 'onsets' environment, creating it if it doesn't already exist
+conda activate onsets || { conda create -n onsets python=3.9 -y && conda activate onsets; }
 
 # Install dependencies
 pip install -r requirements.txt
@@ -28,4 +27,4 @@ echo "Starting training..."
 # You can also pass the dataset path directly if it's stored elsewhere on the HPC!
 # Replace '/path/to/your/hpc/GuitarSet' with your actual dataset folder.
 # 'sequence_length=32000' enforces exactly 2-second chunks (16,000 Hz * 2 seconds)
-python train.py with train_on="GuitarSet" audio_features="cqt" dataset_dir="/path/to/your/hpc/GuitarSet" sequence_length=32000
+python train.py with train_on="GuitarSet" audio_features="cqt" dataset_dir="/scratch/yd3245/coloqui/Guitarset_FromMirdata" sequence_length=32000
