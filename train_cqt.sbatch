@@ -15,7 +15,7 @@ module purge
 singularity exec --nv \
     --bind /scratch:/scratch \
     --overlay /scratch/yd3245/coloqui/overlay-25GB-500K.ext3:ro \
-    /scratch/work/public/singularity/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif \
+    /share/apps/images/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif \
     /bin/bash -c "
     source /ext3/miniconda3/bin/activate
     python train.py with \
