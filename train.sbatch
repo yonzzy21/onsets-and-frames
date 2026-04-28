@@ -13,7 +13,7 @@
 # Start the Singularity container and pass the commands to run inside it
 singularity exec --nv \
   --overlay /scratch/yd3245/training_project/overlay-25GB.ext3:ro \
-  --bind /scratch/yd3245:/scratch \
+  --bind /scratch:/scratch \
   /share/apps/images/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif \
   /bin/bash -c "
     # 1. Initialize Conda from the overlay
