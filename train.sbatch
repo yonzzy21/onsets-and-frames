@@ -28,6 +28,6 @@ singularity exec --nv \
       audio_features='mel' \
       dataset_dir='/scratch/yd3245/coloqui/Guitarset_FromMirdata' \
       sequence_length=32000 \
-      resume_iteration=10000 \
-      logdir='runs/transcriber-260428-133508'
+      resume_iteration=9000 \
+      logdir='runs/transcriber-260428-133949'
 "
