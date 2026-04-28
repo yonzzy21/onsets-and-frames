@@ -14,7 +14,7 @@ module purge
 
 singularity exec --nv \
     --bind /scratch:/scratch \
-    --overlay /scratch/yd3245/coloqui/overlay-25GB-500K.ext3:ro \
+    --overlay /scratch/yd3245/training_project/overlay-25GB.ext3:ro \
     /share/apps/images/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif \
     /bin/bash -c "
     source /ext3/miniconda3/bin/activate
