@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1          # Request 1 GPU (e.g. RTX 8000 or V100)
 #SBATCH --mem=32GB            # Request 32GB memory
-#SBATCH --time=24:00:00       # Time limit (24 hours)
+#SBATCH --time=6:00:00       # Time limit (24 hours)
 #SBATCH --output=slurm_%j.out # Standard output and error log
 
 # Load Anaconda module (standard for NYU Greene HPC)
