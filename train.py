@@ -126,10 +126,14 @@ def train(logdir, device, iterations, resume_iteration, checkpoint_interval, tra
                 
                 print(f'\n[Iteration {i}] Validation Metrics:')
                 for key, values in val_metrics.items():
-                    if key.startswith('metric/'):
-                        _, category, name = key.split('/')
-                        if name == 'f1' or name == 'precision' or name == 'recall':
-                            print(f'  {category:>20} {name:10}: {np.mean(values):.3f}', flush=True)
+                    if key.startswith('metric/') or key.startswith('loss'):
+                        if '/' in key:
+                            _, name = key.split('/')
+                        else:
+                            name = key
+                            
+                        if name in ['f1', 'precision', 'recall', 'loss']:
+                            print(f'  {key:>20}: {np.mean(values):.3f}', flush=True)
             model.train()
 
         if i % checkpoint_interval == 0:
