@@ -55,7 +55,81 @@ In order to test on the Maestro dataset's test split instead of the MAPS databas
 python evaluate.py runs/model/model-100000.pt Maestro test
 ```
 
-## Implementation Details
+## GuitarSet Integration & Performance
+
+The model has been extended to support the **GuitarSet** dataset, shifting the focus from piano to guitar transcription. This involved significant changes to the input features, output space, and convolutional architecture.
+
+### Comparative Evaluation (Player 05)
+
+The following table compares the performance of the baseline **Mel Spectrogram** model against the proposed **CQT Transform** model. Both were evaluated on the Player 05 test set of GuitarSet.
+
+| Metric | Mel Spectrogram (Baseline) | CQT Transform (Proposed) | Improvement |
+| :--- | :---: | :---: | :---: |
+| **Note F1 Score** | 0.868 | **0.880** | +1.2% |
+| **Note w/ Offsets F1** | 0.583 | **0.676** | **+9.3%** |
+| **Frame F1 Score** | 0.791 | **0.841** | +5.0% |
+
+> [!NOTE]
+> The CQT-based model shows a significant improvement in offset detection and overall frame accuracy, likely due to the higher frequency resolution (36 bins per octave) and alignment with the logarithmic nature of musical pitch.
+
+---
+
+## Major Changes (GuitarSet Branch)
+
+The following architectural and pipeline changes were implemented to adapt the model for guitar transcription:
+
+### 1. Dataset & Requirements
+- **Native GuitarSet Support**: Integrated `mirdata` for automated downloading and standardized loading of hexaphonic audio and annotations.
+- **Player-Stratified Split**: Implemented a 3-way split to ensure unbiased evaluation:
+    - **Training**: Players 00–03.
+    - **Validation**: Player 04 (used for real-time monitoring).
+    - **Testing**: Player 05 (held out for final evaluation).
+- **Dependency Updates**: Added `nnAudio` for GPU-accelerated CQT extraction and `mirdata` for dataset management.
+
+### 2. Configurable Audio Features
+- **CQT Implementation**: Added a new `CQT` module wrapping `nnAudio.features.cqt.CQT1992v2`. Configured with **36 bins per octave** (3 bins per semitone) for musically-aligned resolution.
+- **Feature Toggling**: The `OnsetsAndFrames` model now supports a configurable `audio_features` argument, allowing seamless switching between `'mel'` and `'cqt'`.
+
+### 3. Guitar-Specific Output Space
+- **MIDI Range**: Constrained the output to **MIDI 40 to 83** (44 pitches), matching the standard range of a guitar and reducing the model's output complexity.
+- **Resampling**: Standardized input audio to **16kHz** to ensure consistency across the pipeline.
+
+### 4. ConvStack & Temporal Redesign
+The `ConvStack` module was rebuilt according to the **Wiggins and Kim (2021)** paper to better capture guitar pitch features:
+- **Layer Structure**: 2D Convolutions with 12, 12, and 24 filters respectively.
+- **Frequency-Axis Pooling**: Implemented `MaxPool2d((1, 2))` to reduce dimensionality exclusively along the frequency axis, preserving temporal resolution.
+- **Dynamic Flattening**: Implemented logic to allow the model to switch between Mel and CQT spectral resolutions without manual recalibration.
+- **BiLSTM Bottleneck**: Utilizes a bidirectional LSTM with **768 hidden units** to capture the long-term sustain of guitar notes.
+
+---
+
+## Model Capacity & Parameter Analysis
+
+The shift to CQT features increases the model's "representational bandwidth" at the cost of higher parameter counts:
+
+| Model Configuration | Total Parameters | Input Flattened Dim |
+| :--- | :---: | :---: |
+| **Mel-Baseline** | 17,275,276 | 2,736 |
+| **CQT-Experimental** | **19,487,116** | **3,456** |
+
+The **12.8% increase** in parameters is concentrated in the fully-connected transition layers. This extra capacity allows the CQT model to effectively process the higher semitone-aligned resolution, leading to the improved F1 scores observed in testing.
+
+---
+
+## Key Findings & Conclusion
+
+
+**Offset Precision**: The most significant performance gain (**+9.3% F1 score**) was observed in **Note Offset** detection. The model was better able to distinguish the decay phase of a string vibration from the onset of a new note, even in dense polyphonic passages.
+The transition from Mel-frequency representations to Constant-Q Transforms (CQT) yielded several critical insights for high-fidelity guitar transcription:
+
+2.  **Offset Precision**: The most significant performance gain (**+9.3% F1 score**) was observed in **Note Offset** detection.
+3.  **Representational Bandwidth**: The 12.8% increase in model parameters provided the necessary "bandwidth" to process higher-resolution spectral features, allowing the BiLSTM to capture more nuanced temporal characteristics of the acoustic guitar.
+
+While the CQT model didn't improve the overall F1 score significantly (+1.2%), it substantially improved the F1 score of note offsets, with the tradeoff of slightly more parameters (17M vs 19M).
+
+---
+
+## Implementation Details (Original)
 
 This implementation contains a few of the additional improvements on the model that were reported in the Maestro paper, including:
 
