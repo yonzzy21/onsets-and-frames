@@ -1,59 +1,8 @@
 # PyTorch Implementation of Onsets and Frames
 
-This is a [PyTorch](https://pytorch.org/) implementation of Google's [Onsets and Frames](https://magenta.tensorflow.org/onsets-frames) model, using the [Maestro dataset](https://magenta.tensorflow.org/datasets/maestro) for training and the Disklavier portion of the [MAPS database](http://www.tsi.telecom-paristech.fr/aao/en/2010/07/08/maps-database-a-piano-database-for-multipitch-estimation-and-automatic-transcription-of-music/) for testing.
+This repository is forked from a [PyTorch](https://pytorch.org/) implementation of Google's [Onsets and Frames](https://magenta.tensorflow.org/onsets-frames) model. Originally designed for piano transcription, this version has been significantly enhanced to support high-fidelity **guitar transcription** using the GuitarSet dataset and Constant-Q Transform (CQT) features.
 
-## Instructions
-
-This project is quite resource-intensive; 32 GB or larger system memory and 8 GB or larger GPU memory is recommended. 
-
-### Downloading Dataset
-
-The `data` subdirectory already contains the MAPS database. To download the Maestro dataset, first make sure that you have `ffmpeg` executable and run `prepare_maestro.sh` script:
-
-```bash
-ffmpeg -version
-cd data
-./prepare_maestro.sh
-```
-
-This will download the full Maestro dataset from Google's server and automatically unzip and encode them as FLAC files in order to save storage. However, you'll still need about 200 GB of space for intermediate storage.
-
-### Training
-
-All package requirements are contained in `requirements.txt`. To train the model, run:
-
-```bash
-pip install -r requirements.txt
-python train.py
-```
-
-`train.py` is written using [sacred](https://sacred.readthedocs.io/), and accepts configuration options such as:
-
-```bash
-python train.py with logdir=runs/model iterations=1000000
-```
-
-Trained models will be saved in the specified `logdir`, otherwise at a timestamped directory under `runs/`.
-
-### Testing
-
-To evaluate the trained model using the MAPS database, run the following command to calculate the note and frame metrics:
-
-```bash
-python evaluate.py runs/model/model-100000.pt
-```
-
-Specifying `--save-path` will output the transcribed MIDI file along with the piano roll images:
-
-```bash
-python evaluate.py runs/model/model-100000.pt --save-path output/
-```
-
-In order to test on the Maestro dataset's test split instead of the MAPS database, run:
-
-```bash
-python evaluate.py runs/model/model-100000.pt Maestro test
-```
+---
 
 ## GuitarSet Integration & Performance
 
@@ -66,8 +15,8 @@ The following table compares the performance of the baseline **Mel Spectrogram**
 | Metric | Mel Spectrogram (Baseline) | CQT Transform (Proposed) | Improvement |
 | :--- | :---: | :---: | :---: |
 | **Note F1 Score** | 0.868 | **0.880** | +1.2% |
-| **Note w/ Offsets F1** | 0.583 | **0.676** | **+9.3%** |
 | **Frame F1 Score** | 0.791 | **0.841** | +5.0% |
+| **Note w/ Offsets F1** | 0.583 | **0.676** | **+9.3%** |
 
 > [!NOTE]
 > The CQT-based model shows a significant improvement in offset detection and overall frame accuracy, likely due to the higher frequency resolution (36 bins per octave) and alignment with the logarithmic nature of musical pitch.
@@ -118,32 +67,71 @@ The **12.8% increase** in parameters is concentrated in the fully-connected tran
 
 ## Key Findings & Conclusion
 
-
 **Offset Precision**: The most significant performance gain (**+9.3% F1 score**) was observed in **Note Offset** detection. The model was better able to distinguish the decay phase of a string vibration from the onset of a new note, even in dense polyphonic passages.
-The transition from Mel-frequency representations to Constant-Q Transforms (CQT) yielded several critical insights for high-fidelity guitar transcription:
-
-2.  **Offset Precision**: The most significant performance gain (**+9.3% F1 score**) was observed in **Note Offset** detection.
-3.  **Representational Bandwidth**: The 12.8% increase in model parameters provided the necessary "bandwidth" to process higher-resolution spectral features, allowing the BiLSTM to capture more nuanced temporal characteristics of the acoustic guitar.
 
 While the CQT model didn't improve the overall F1 score significantly (+1.2%), it substantially improved the F1 score of note offsets, with the tradeoff of slightly more parameters (17M vs 19M).
 
 ---
 
-## Implementation Details (Original)
+## Original Piano Model (Maestro/MAPS)
+
+This section contains the instructions and details for the original piano transcription model using the Maestro and MAPS datasets.
+
+### Instructions
+
+This project is quite resource-intensive; 32 GB or larger system memory and 8 GB or larger GPU memory is recommended. 
+
+### Downloading Dataset
+
+The `data` subdirectory already contains the MAPS database. To download the Maestro dataset, first make sure that you have `ffmpeg` executable and run `prepare_maestro.sh` script:
+
+```bash
+ffmpeg -version
+cd data
+./prepare_maestro.sh
+```
+
+This will download the full Maestro dataset from Google's server and automatically unzip and encode them as FLAC files in order to save storage. However, you'll still need about 200 GB of space for intermediate storage.
+
+### Training
+
+To train the original piano model, run:
+
+```bash
+pip install -r requirements.txt
+python train.py
+```
+
+`train.py` accepts configuration options such as:
+
+```bash
+python train.py with logdir=runs/model iterations=1000000
+```
+
+### Testing
+
+To evaluate the trained model using the MAPS database:
+
+```bash
+python evaluate.py runs/model/model-100000.pt
+```
+
+To test on the Maestro dataset's test split:
+
+```bash
+python evaluate.py runs/model/model-100000.pt Maestro test
+```
+
+---
+
+## Original Implementation Details
 
 This implementation contains a few of the additional improvements on the model that were reported in the Maestro paper, including:
 
 * Offset head
-* Increased model capacity, making it 26M parameters by default
+* Increased model capacity (26M parameters by default for the piano model)
 * Gradient stopping of inter-stack connections
 * L2 Gradient clipping of each parameter at 3
 * Using the HTK mel frequencies
 
-Meanwhile, this implementation does not include the following features:
-
-* Variable-length input sequences that slices at silence or zero crossings
-* Harmonically decaying weights on the frame loss
-
-Despite these, this implementation is able to achieve a comparable performance to what is reported on the Maestro paper as the performance without data augmentation.
-
-
+Note: This implementation does not include variable-length input sequences or harmonically decaying weights on the frame loss.
